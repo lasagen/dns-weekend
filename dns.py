@@ -59,17 +59,17 @@ class DNSPacket:
 ### part 1 functions, for creating DNS queries ###
 
 
-def header_to_bytes(header):
+def header_to_bytes(header: DNSHeader) -> bytes:
     fields = dataclasses.astuple(header)
     # 'H' means '2-byte integer'
     # there are 6 'H's because there are 6 2-byte int fields in the header
     # '!' means 'network byte order, always big-endian from RFC 1700'
     return struct.pack("!HHHHHH", *fields)
 
-def question_to_bytes(question):
+def question_to_bytes(question: DNSQuestion) -> bytes:
     return question.name + struct.pack("!HH", question.type_, question.class_)
 
-def encode_dns_name(domain_name):
+def encode_dns_name(domain_name: str) -> bytes:
     encoded = b""
     for part in domain_name.encode("ascii").split(b"."):
         # instead of separating parts of name by dots,
@@ -78,7 +78,7 @@ def encode_dns_name(domain_name):
         encoded += bytes([len(part)]) + part
     return encoded + b"\x00" # add null term
 
-def build_query_google(domain_name, record_type):
+def build_query_google(domain_name: str, record_type: int) -> bytes:
     name = encode_dns_name(domain_name)
     id = random.randint(0, 65535)
 
@@ -88,7 +88,7 @@ def build_query_google(domain_name, record_type):
     question = DNSQuestion(name=name, type_=record_type, class_=CLASS_IN)
     return header_to_bytes(header) + question_to_bytes(question)
 
-def build_query(domain_name, record_type):
+def build_query(domain_name: str, record_type: int) -> bytes:
     name = encode_dns_name(domain_name)
     id = random.randint(0, 65535)
 
@@ -103,12 +103,12 @@ def build_query(domain_name, record_type):
 ### part 2 functions, for parsing DNS responses ###
 
 
-def parse_header(reader):
+def parse_header(reader: BytesIO) -> DNSHeader:
     # there are 12 bytes total to read from the response header
     items = struct.unpack("!HHHHHH", reader.read(12))
     return DNSHeader(*items)
 
-def decode_name_simple(reader):
+def decode_name_simple(reader: BytesIO) -> bytes:
     # will not work for compressed responses!!!!
     parts = []
     # length must be < 64, read a 1-byte length until no length is left
@@ -116,13 +116,13 @@ def decode_name_simple(reader):
         parts.append(reader.read(length))
     return b".".join(parts)
 
-def parse_question(reader):
+def parse_question(reader: BytesIO) -> DNSQuestion:
     name = decode_name(reader)
     data = reader.read(4)
     type_, class_ = struct.unpack("!HH", data)
     return DNSQuestion(name, type_, class_)
 
-def decode_compressed_name(length, reader):
+def decode_compressed_name(length: bytes, reader: BytesIO) -> bytes:
     # bottom 6 bits of the length byte + next byte gives the location of
     # the compressed name in the DNS packet
     pointer_bytes = bytes([length & 0b0011_1111]) + reader.read(1)
@@ -136,7 +136,7 @@ def decode_compressed_name(length, reader):
     reader.seek(current_pos) # restore current pos
     return result
 
-def decode_name(reader):
+def decode_name(reader: BytesIO) -> bytes:
     parts = []
     while (length := reader.read(1)[0]) != 0:
         if length & 0b1100_0000:
@@ -149,7 +149,7 @@ def decode_name(reader):
             parts.append(reader.read(length))
     return b".".join(parts)
 
-def parse_record(reader):
+def parse_record(reader: BytesIO) -> DNSRecord:
     name = decode_name(reader)
     # type, class, and data length are 2 bytes, ttl is 4 bytes
     data = reader.read(10)
@@ -166,7 +166,7 @@ def parse_record(reader):
     # now read the actual data portion
     return DNSRecord(name, type_, class_, ttl, data)
 
-def parse_dns_packet(data):
+def parse_dns_packet(data: bytes) -> DNSPacket:
     reader = BytesIO(data)
     header = parse_header(reader)
     questions = [parse_question(reader) for _ in range(header.num_questions)]
@@ -176,11 +176,11 @@ def parse_dns_packet(data):
 
     return DNSPacket(header, questions, answers, authorities, additionals)
 
-def ip_to_string(ip):
+def ip_to_string(ip: bytes) -> str:
     # make pretty ip addr string
     return ".".join([str(x) for x in ip])
 
-def lookup_domain(domain_name):
+def lookup_domain(domain_name: str) -> bytes:
     # use google's resolver instead of ours
     query = build_query_google(domain_name, TYPE_A)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP socket
@@ -195,7 +195,8 @@ def lookup_domain(domain_name):
 ### part 3 functions, for resolving DNS queries ###
 
 
-def send_query(ip_address, domain_name, record_type):
+def send_query(
+        ip_address: str, domain_name: str, record_type: int) -> DNSPacket:
     query = build_query(domain_name, record_type)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(query, (ip_address, 53))
@@ -204,25 +205,25 @@ def send_query(ip_address, domain_name, record_type):
     data, _ = sock.recvfrom(1024)
     return parse_dns_packet(data)
 
-def get_answer(packet):
+def get_answer(packet: DNSPacket) -> bytes:
     # return the first A record in the Answer section
     for x in packet.answers:
         if x.type_ == TYPE_A:
             return x.data
 
-def get_nameserver_ip(packet):
+def get_nameserver_ip(packet: DNSPacket) -> bytes:
     # return the first A record in the Additional section
     for x in packet.additionals:
         if x.type_ == TYPE_A:
             return x.data
 
-def get_nameserver(packet):
+def get_nameserver(packet: DNSPacket) -> bytes:
     # return the first NS record in the Authority section
     for x in packet.authorities:
         if x.type_ == TYPE_NS:
             return x.data.decode('utf-8')
 
-def resolve(domain_name, record_type):
+def resolve(domain_name: str, record_type: int) -> bytes:
     nameserver = ROOT_IP
     while True:
         print(f"Querying {nameserver} for {domain_name}")
