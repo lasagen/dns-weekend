@@ -40,11 +40,11 @@ class DNSQuestion:
 
 @dataclass
 class DNSRecord:
-    # aka DNS answer
+    # DNS answer, authority, or additional
     name: bytes
     type_: int
     class_: int
-    ttl: int # how long to cache the query
+    ttl: int # how long to cache the query. TODO: implement cache
     data: bytes
 
 @dataclass
