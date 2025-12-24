@@ -214,8 +214,8 @@ def get_nameserver(packet: DNSPacket) -> bytes:
         if x.type_ == TYPE_NS:
             return x.data.decode('utf-8')
 
-def resolve(domain_name: str, record_type: int) -> bytes:
-    nameserver = ROOT_IP
+def resolve(
+        domain_name: str, record_type: int, nameserver: str = ROOT_IP) -> bytes:
     while True:
         print(f"Querying {nameserver} for {domain_name}")
         response = send_query(nameserver, domain_name, record_type)
