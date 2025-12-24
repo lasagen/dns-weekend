@@ -254,21 +254,4 @@ def resolve(
             raise Exception("something went wrong")
 
 if __name__ == '__main__':
-    print(lookup_domain("www.example.com"))
-    print(lookup_domain("www.facebook.com"))
-    # above gives weird result because it's a CNAME (type 5) record
-    # but if we lookup_domain using the canonical name for facebook.com (below), we get a normal IP addr result
-    # TODO: handle CNAME
-    print(lookup_domain("star-mini.c10r.facebook.com"))
-    print(lookup_domain("www.stackoverflow.com"))
-    print(lookup_domain("www.metafilter.com"))
-
-    response = send_query(ROOT_IP, "google.com", TYPE_A)
-    print("\n\nAnswers")
-    print(response.answers)
-    print("\n\nAuthorities")
-    print(response.authorities)
-    print("\n\nAdditionals")
-    print(response.additionals)
-
     print(resolve("neocities.org", TYPE_A))
