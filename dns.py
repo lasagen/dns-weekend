@@ -147,8 +147,9 @@ def parse_record(reader: BytesIO) -> DNSRecord:
     # 'I' means 4-byte int
     type_, class_, ttl, data_len = struct.unpack("!HHIH", data)
 
-    if type_ == TYPE_NS:
+    if type_ == TYPE_NS or type_ == TYPE_CNAME:
         # NS record will have the domain name of nameserver to ask instead
+        # CNAME record will have the canonical domain name to resolve instead
         data = decode_name(reader)
     elif type_ == TYPE_A:
         data = ip_to_string(reader.read(data_len))
@@ -202,6 +203,12 @@ def get_answer(packet: DNSPacket) -> bytes:
         if x.type_ == TYPE_A:
             return x.data
 
+def get_cname(packet: DNSPacket) -> bytes:
+    # return the first CNAME record in the Answer section
+    for x in packet.answers:
+        if x.type_ == TYPE_CNAME:
+            return x.data.decode('utf-8')
+
 def get_nameserver_ip(packet: DNSPacket) -> bytes:
     # return the first A record in the Additional section
     for x in packet.additionals:
@@ -221,11 +228,14 @@ def resolve(
         response = send_query(nameserver, domain_name, record_type)
         if ip := get_answer(response):
             return ip
+        elif cname := get_cname(response):
+            # retry query using cname value instead
+            return resolve(cname, record_type, nameserver)
         elif nsIP := get_nameserver_ip(response):
             nameserver = nsIP
         elif ns_domain := get_nameserver(response):
             # fallback if we're given a nameserver's domain but not its IP
-            nameserver = resolve(ns_domain, TYPE_A)
+            nameserver = resolve(ns_domain, TYPE_A, nameserver)
         else:
             raise Exception("something went wrong")
 
