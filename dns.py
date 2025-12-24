@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import lru_cache
 from io import BytesIO # used to keep pointers to positions in a byte stream
 from typing import List
 import dataclasses # used to reduce boilerplate in setting up header and response classes
@@ -221,6 +222,19 @@ def get_nameserver(packet: DNSPacket) -> bytes:
         if x.type_ == TYPE_NS:
             return x.data.decode('utf-8')
 
+def normalize_string_args(func):
+    def wrapper(*args, **kwargs):
+        new_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                new_args.append(arg.lower())
+            else:
+                new_args.append(arg)
+        return func(*new_args, **kwargs)
+    return wrapper
+
+@normalize_string_args
+@lru_cache(maxsize=256)
 def resolve(
         domain_name: str, record_type: int, nameserver: str = ROOT_IP) -> bytes:
     while True:
@@ -238,7 +252,6 @@ def resolve(
             nameserver = resolve(ns_domain, TYPE_A, nameserver)
         else:
             raise Exception("something went wrong")
-
 
 if __name__ == '__main__':
     print(lookup_domain("www.example.com"))

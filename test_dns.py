@@ -37,3 +37,6 @@ def test_cname():
     test_packet = DNSPacket(header, [question], [answer], [], [])
 
     assert get_cname(test_packet) == 'star-mini.c10r.facebook.com'
+
+def test_normalize():
+    assert resolve("neocities.org", TYPE_A) == resolve("Neocities.Org", TYPE_A)
