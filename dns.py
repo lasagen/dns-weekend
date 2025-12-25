@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from functools import lru_cache
+from datetime import datetime
 from io import BytesIO # used to keep pointers to positions in a byte stream
-from typing import List
+from typing import Dict, List, Tuple
 import dataclasses # used to reduce boilerplate in setting up header and response classes
 import random
 import socket
@@ -36,7 +36,7 @@ class DNSRecord:
     name: bytes
     type_: int
     class_: int
-    ttl: int # how long to cache the query. TODO: implement cache
+    ttl: int # how long to cache the query, in seconds
     data: bytes
 
 @dataclass
@@ -46,6 +46,14 @@ class DNSPacket:
     answers: List[DNSRecord] # IP address of what we want
     authorities: List[DNSRecord] # ask these servers instead
     additionals: List[DNSRecord] # other records (e.g. that give us the IP addresses of the nameservers)
+
+@dataclass
+class CacheEntry:
+    stored_ts: datetime
+    ttl: int
+    data: bytes
+
+cache: Dict[Tuple[str, int], CacheEntry] = {}
 
 
 ### part 1 functions, for creating DNS queries ###
@@ -198,11 +206,11 @@ def send_query(
     data, _ = sock.recvfrom(1024)
     return parse_dns_packet(data)
 
-def get_answer(packet: DNSPacket) -> bytes:
+def get_answer(packet: DNSPacket) -> Tuple[bytes, int]:
     # return the first A record in the Answer section
     for x in packet.answers:
         if x.type_ == TYPE_A:
-            return x.data
+            return (x.data, x.ttl)
 
 def get_cname(packet: DNSPacket) -> bytes:
     # return the first CNAME record in the Answer section
@@ -222,25 +230,19 @@ def get_nameserver(packet: DNSPacket) -> bytes:
         if x.type_ == TYPE_NS:
             return x.data.decode('utf-8')
 
-def normalize_string_args(func):
-    def wrapper(*args, **kwargs):
-        new_args = []
-        for arg in args:
-            if isinstance(arg, str):
-                new_args.append(arg.lower())
-            else:
-                new_args.append(arg)
-        return func(*new_args, **kwargs)
-    return wrapper
-
-@normalize_string_args
-@lru_cache(maxsize=256)
 def resolve(
         domain_name: str, record_type: int, nameserver: str = ROOT_IP) -> bytes:
+    if (domain_name, record_type) in cache:
+        entry = cache[(domain_name, record_type)]
+        if (datetime.now() - entry.stored_ts).total_seconds() < entry.ttl:
+            return entry.data
     while True:
         print(f"Querying {nameserver} for {domain_name}")
         response = send_query(nameserver, domain_name, record_type)
-        if ip := get_answer(response):
+        if ip_ttl := get_answer(response):
+            ip, ttl = ip_ttl
+            cache[(domain_name, record_type)] = CacheEntry(
+                stored_ts=datetime.now(), ttl=ttl, data=ip)
             return ip
         elif cname := get_cname(response):
             # retry query using cname value instead
