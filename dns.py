@@ -232,8 +232,9 @@ def get_nameserver(packet: DNSPacket) -> bytes:
 
 def resolve(
         domain_name: str, record_type: int, nameserver: str = ROOT_IP) -> bytes:
-    if (domain_name, record_type) in cache:
-        entry = cache[(domain_name, record_type)]
+    normalized_name = domain_name.lower()
+    if (normalized_name, record_type) in cache:
+        entry = cache[(normalized_name, record_type)]
         if (datetime.now() - entry.stored_ts).total_seconds() < entry.ttl:
             return entry.data
     while True:
@@ -241,7 +242,7 @@ def resolve(
         response = send_query(nameserver, domain_name, record_type)
         if ip_ttl := get_answer(response):
             ip, ttl = ip_ttl
-            cache[(domain_name, record_type)] = CacheEntry(
+            cache[(normalized_name, record_type)] = CacheEntry(
                 stored_ts=datetime.now(), ttl=ttl, data=ip)
             return ip
         elif cname := get_cname(response):
