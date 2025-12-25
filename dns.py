@@ -1,8 +1,8 @@
 from dataclasses import dataclass
+import dataclasses # used to reduce boilerplate in setting up header and response classes
 from datetime import datetime
 from io import BytesIO # used to keep pointers to positions in a byte stream
 from typing import Dict, List, Tuple
-import dataclasses # used to reduce boilerplate in setting up header and response classes
 import random
 import socket
 import struct # used for converting python objects into packed (no padding) byte strings, like C structs
@@ -43,7 +43,7 @@ class DNSRecord:
 class DNSPacket:
     header: DNSHeader
     questions: List[DNSQuestion]
-    answers: List[DNSRecord] # IP address of what we want
+    answers: List[DNSRecord] # IP address for A record, canonical name for CNAME
     authorities: List[DNSRecord] # ask these servers instead
     additionals: List[DNSRecord] # other records (e.g. that give us the IP addresses of the nameservers)
 
@@ -64,7 +64,7 @@ def header_to_bytes(header: DNSHeader) -> bytes:
     fields = dataclasses.astuple(header)
     # 'H' means '2-byte integer'
     # there are 6 'H's because there are 6 2-byte int fields in the header
-    # '!' means 'network byte order, always big-endian from RFC 1700'
+    # '!' means 'network byte order' (always big-endian from RFC 1700)
     return struct.pack("!HHHHHH", *fields)
 
 def question_to_bytes(question: DNSQuestion) -> bytes:
@@ -131,7 +131,7 @@ def decode_compressed_name(length: bytes, reader: BytesIO) -> bytes:
     current_pos = reader.tell() # save current pos in stream
     # go to that position and decode name from there
     # vulnerability: a compression entry could point to itself
-    # TODO: prevent this
+    # TODO: prevent this by limiting number of compression pointers followed
     reader.seek(pointer)
     result = decode_name(reader)
     reader.seek(current_pos) # restore current pos
