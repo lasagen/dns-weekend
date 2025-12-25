@@ -53,6 +53,11 @@ class CacheEntry:
     ttl: int
     data: bytes
 
+@dataclass
+class Resolved:
+    data: bytes
+    from_cache: bool
+
 cache: Dict[Tuple[str, int], CacheEntry] = {}
 
 
@@ -230,13 +235,13 @@ def get_nameserver(packet: DNSPacket) -> bytes:
         if x.type_ == TYPE_NS:
             return x.data.decode('utf-8')
 
-def resolve(
-        domain_name: str, record_type: int, nameserver: str = ROOT_IP) -> bytes:
+def resolve(domain_name: str, record_type: int,
+            nameserver: str = ROOT_IP) -> Resolved:
     normalized_name = domain_name.lower()
     if (normalized_name, record_type) in cache:
         entry = cache[(normalized_name, record_type)]
         if (datetime.now() - entry.stored_ts).total_seconds() < entry.ttl:
-            return entry.data
+            return Resolved(data=entry.data, from_cache=True)
     while True:
         print(f"Querying {nameserver} for {domain_name}")
         response = send_query(nameserver, domain_name, record_type)
@@ -244,7 +249,7 @@ def resolve(
             ip, ttl = ip_ttl
             cache[(normalized_name, record_type)] = CacheEntry(
                 stored_ts=datetime.now(), ttl=ttl, data=ip)
-            return ip
+            return Resolved(data=ip, from_cache=False)
         elif cname := get_cname(response):
             # retry query using cname value instead
             return resolve(cname, record_type, nameserver)
@@ -257,4 +262,4 @@ def resolve(
             raise Exception("something went wrong")
 
 if __name__ == '__main__':
-    print(resolve("neocities.org", TYPE_A))
+    print(resolve("neocities.org", TYPE_A).data)

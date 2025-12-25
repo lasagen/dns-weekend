@@ -24,7 +24,7 @@ def test_ns_no_answer():
     assert get_nameserver_ip(test_packet) == None
     
     ns_domain = get_nameserver(test_packet)
-    ip = resolve('google.com', TYPE_A, nameserver=ns_domain)
+    ip = resolve('google.com', TYPE_A, nameserver=ns_domain).data
 
     # IP addresses will not be consistent, so for now, just test that we
     # got a valid ip address back, I guess
@@ -39,4 +39,5 @@ def test_cname():
     assert get_cname(test_packet) == 'star-mini.c10r.facebook.com'
 
 def test_normalize():
-    assert resolve("neocities.org", TYPE_A) == resolve("Neocities.Org", TYPE_A)
+    assert resolve("neocities.org", TYPE_A).from_cache == False
+    assert resolve("Neocities.Org", TYPE_A).from_cache == True
