@@ -1,5 +1,6 @@
 import random
 import socket
+import time
 
 from constants import *
 from dns import (resolve, 
@@ -41,3 +42,10 @@ def test_cname():
 def test_normalize():
     assert resolve("neocities.org", TYPE_A).from_cache == False
     assert resolve("Neocities.Org", TYPE_A).from_cache == True
+
+# ignored by pytest because it's slow. TODO: find a better way to do this
+def optional_test_cache():
+    ttl = resolve("neocities.org", TYPE_A).ttl
+    assert resolve("neocities.org", TYPE_A).from_cache == True
+    time.sleep(ttl)
+    assert resolve("neocities.org", TYPE_A).from_cache == False

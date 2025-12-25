@@ -56,6 +56,7 @@ class CacheEntry:
 @dataclass
 class Resolved:
     data: bytes
+    ttl: int
     from_cache: bool
 
 cache: Dict[Tuple[str, int], CacheEntry] = {}
@@ -241,7 +242,7 @@ def resolve(domain_name: str, record_type: int,
     if (normalized_name, record_type) in cache:
         entry = cache[(normalized_name, record_type)]
         if (datetime.now() - entry.stored_ts).total_seconds() < entry.ttl:
-            return Resolved(data=entry.data, from_cache=True)
+            return Resolved(data=entry.data, ttl=entry.ttl, from_cache=True)
     while True:
         print(f"Querying {nameserver} for {domain_name}")
         response = send_query(nameserver, domain_name, record_type)
@@ -249,7 +250,7 @@ def resolve(domain_name: str, record_type: int,
             ip, ttl = ip_ttl
             cache[(normalized_name, record_type)] = CacheEntry(
                 stored_ts=datetime.now(), ttl=ttl, data=ip)
-            return Resolved(data=ip, from_cache=False)
+            return Resolved(data=ip, ttl=ttl, from_cache=False)
         elif cname := get_cname(response):
             # retry query using cname value instead
             return resolve(cname, record_type, nameserver)
