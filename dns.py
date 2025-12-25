@@ -48,18 +48,13 @@ class DNSPacket:
     additionals: List[DNSRecord] # other records (e.g. that give us the IP addresses of the nameservers)
 
 @dataclass
-class CacheEntry:
-    stored_ts: datetime
-    ttl: int
-    data: bytes
-
-@dataclass
 class Resolved:
     data: bytes
+    stored_ts: datetime
     ttl: int
     from_cache: bool
 
-cache: Dict[Tuple[str, int], CacheEntry] = {}
+cache: Dict[Tuple[str, int], Resolved] = {}
 
 
 ### part 1 functions, for creating DNS queries ###
@@ -242,15 +237,17 @@ def resolve(domain_name: str, record_type: int,
     if (normalized_name, record_type) in cache:
         entry = cache[(normalized_name, record_type)]
         if (datetime.now() - entry.stored_ts).total_seconds() < entry.ttl:
-            return Resolved(data=entry.data, ttl=entry.ttl, from_cache=True)
+            entry.from_cache = True
+            return entry
     while True:
         print(f"Querying {nameserver} for {domain_name}")
         response = send_query(nameserver, domain_name, record_type)
         if ip_ttl := get_answer(response):
             ip, ttl = ip_ttl
-            cache[(normalized_name, record_type)] = CacheEntry(
-                stored_ts=datetime.now(), ttl=ttl, data=ip)
-            return Resolved(data=ip, ttl=ttl, from_cache=False)
+            entry = Resolved(
+                data=ip, stored_ts=datetime.now(), ttl=ttl, from_cache=False)
+            cache[(normalized_name, record_type)] = entry
+            return entry
         elif cname := get_cname(response):
             # retry query using cname value instead
             return resolve(cname, record_type, nameserver)
