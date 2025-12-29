@@ -229,7 +229,7 @@ def get_cname(packet: DNSPacket) -> bytes:
     # return the first CNAME record in the Answer section
     for x in packet.answers:
         if x.type_ == TYPE_CNAME:
-            return x.data.decode('utf-8')
+            return x.data.decode("utf-8")
 
 def get_nameserver_ip(packet: DNSPacket) -> bytes:
     # return the first A record in the Additional section
@@ -241,7 +241,7 @@ def get_nameserver(packet: DNSPacket) -> bytes:
     # return the first NS record in the Authority section
     for x in packet.authorities:
         if x.type_ == TYPE_NS:
-            return x.data.decode('utf-8')
+            return x.data.decode("utf-8")
 
 def resolve(domain_name: str, record_type: int,
             nameserver: str = ROOT_IP) -> Resolved:
@@ -271,5 +271,5 @@ def resolve(domain_name: str, record_type: int,
         else:
             raise Exception("something went wrong")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(resolve("neocities.org", TYPE_A).data)
