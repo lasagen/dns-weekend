@@ -170,6 +170,11 @@ def parse_record(reader: BytesIO) -> DNSRecord:
         data = decode_name(reader)
     elif type_ == TYPE_A:
         data = ip_to_string(reader.read(data_len))
+    elif type_ == TYPE_AAAA:
+        ip = []
+        for _ in range(data_len // 2):
+            ip.append(reader.read(2).hex())
+        data = ":".join([str(x) for x in ip])
     else:
         data = reader.read(data_len)
     # now read the actual data portion
