@@ -123,26 +123,33 @@ def parse_question(reader: BytesIO) -> DNSQuestion:
     type_, class_ = struct.unpack("!HH", data)
     return DNSQuestion(name, type_, class_)
 
-def decode_compressed_name(length: bytes, reader: BytesIO) -> bytes:
+def decode_compressed_name(
+        length: bytes,
+        reader: BytesIO,
+        total_compression_ptrs: int) -> bytes:
     # bottom 6 bits of the length byte + next byte gives the location of
     # the compressed name in the DNS packet
     pointer_bytes = bytes([length & 0b0011_1111]) + reader.read(1)
     pointer = struct.unpack("!H", pointer_bytes)[0]
     current_pos = reader.tell() # save current pos in stream
     # go to that position and decode name from there
-    # vulnerability: a compression entry could point to itself
-    # TODO: prevent this by limiting number of compression pointers followed
     reader.seek(pointer)
-    result = decode_name(reader)
+    result = decode_name(reader, total_compression_ptrs)
     reader.seek(current_pos) # restore current pos
     return result
 
-def decode_name(reader: BytesIO) -> bytes:
+def decode_name(reader: BytesIO, total_compression_ptrs: int = 0) -> bytes:
     parts = []
     while (length := reader.read(1)[0]) != 0:
         if length & 0b1100_0000:
             # compressed!
-            parts.append(decode_compressed_name(length, reader))
+            # prevent malicious compression entries pointing to themselves
+            # by exiting after max possible compression ptrs
+            total_compression_ptrs += 1
+            if total_compression_ptrs > MAX_COMPRESSION_PTRS:
+                raise Exception("Too many compression pointers, loop detected")
+            parts.append(decode_compressed_name(
+                length, reader, total_compression_ptrs))
             # why not continue? because compressed names are never followed by another label
             break
         else:
